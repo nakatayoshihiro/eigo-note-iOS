@@ -1,0 +1,53 @@
+# ---- macOS ----
+.DS_Store
+
+# ---- Xcode: ユーザー個人の設定 ----
+# xcuserdata は「そのMacで開いていたタブ・ブレークポイント」等の個人設定。
+# 一方 xcshareddata（共有スキーム）はコミットする。除外しないこと。
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# ---- Xcode: ビルド成果物 ----
+build/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# ---- Xcode: 旧形式の残骸 ----
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# ---- Swift Package Manager ----
+.build/
+.swiftpm/
+
+# ---- Playground ----
+timeline.xctimeline
+playground.xcworkspace
+
+# ---- fastlane（将来使う場合） ----
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# ---- 署名・秘密情報：絶対にコミットしない ----
+# 実体は英語メモノート/ios-signing/（リポジトリ外）に置く
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+*.certSigningRequest
+.env
+.env.*
+Secrets.plist
