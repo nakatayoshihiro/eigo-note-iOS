@@ -60,7 +60,10 @@ final class AuthStore {
         } catch let error as ASWebAuthenticationSessionError where error.code == .canceledLogin {
             // 同上（キャンセルは失敗ではない）
         } catch {
-            errorMessage = "ログインできませんでした。通信環境を確認して、もう一度お試しください。"
+            // 原因を画面にも出す。ログインは端末や通信状況で失敗の仕方が変わるので、
+            // 「失敗しました」だけだと問い合わせを受けても切り分けられない。
+            // ⚠️ トークンや Cookie の中身は絶対に載せないこと（画面もログも）
+            errorMessage = "ログインできませんでした（\(Self.reason(for: error))）。もう一度お試しください。"
             print("signIn failed: \(error)")
         }
     }
@@ -101,6 +104,22 @@ final class AuthStore {
         case missingToken
         case exchangeFailed(status: Int)
         case server(String)
+    }
+
+    // 画面に出す短い理由。秘密情報を含めないため、種類とHTTPステータスだけに絞る
+    private static func reason(for error: Error) -> String {
+        switch error {
+        case SignInError.missingToken:
+            return "トークンを受け取れませんでした"
+        case SignInError.exchangeFailed(let status):
+            return "引き換えに失敗 \(status)"
+        case SignInError.server(let code):
+            return "サーバー: \(code)"
+        case let urlError as URLError:
+            return "通信 \(urlError.code.rawValue)"
+        default:
+            return "原因不明"
+        }
     }
 }
 
