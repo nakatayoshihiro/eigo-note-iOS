@@ -1,24 +1,21 @@
-//
-//  ContentView.swift
-//  Phremo
-//
-//  Created by 中田 佳宏 on R 8/08/25.
-//
-
 import SwiftUI
 
-struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+// ログイン状態で画面を出し分けるだけの入口。
+struct RootView: View {
+    let auth: AuthStore
 
-#Preview {
-    ContentView()
+    var body: some View {
+        Group {
+            switch auth.state {
+            case .restoring:
+                // Keychain を読むだけなので一瞬。ここでロゴを出すと逆にちらつく
+                ProgressView()
+            case .signedOut:
+                LoginView(auth: auth)
+            case .signedIn:
+                NoteListView(auth: auth)
+            }
+        }
+        .task { auth.restore() }
+    }
 }

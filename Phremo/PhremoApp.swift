@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct PhremoApp: App {
+    @State private var auth = AuthStore()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView(auth: auth)
         }
     }
 }
