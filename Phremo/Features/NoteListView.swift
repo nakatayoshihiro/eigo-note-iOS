@@ -71,7 +71,10 @@ struct NoteListView: View {
 
     private func row(for note: Note) -> some View {
         HStack(spacing: 12) {
-            Text(note.sticker ?? "📝").font(.title2)
+            Image(systemName: Sticker.forNote(id: note.id, saved: note.sticker).symbol)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .frame(width: 28)
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.displayTitle).font(.body).lineLimit(1)
                 Text("\(note.wordCount) 語 ・ \(note.lastViewedAt.formatted(.relative(presentation: .named)))")
