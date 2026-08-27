@@ -71,10 +71,13 @@ struct NoteListView: View {
 
     private func row(for note: Note) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: Sticker.forNote(id: note.id, saved: note.sticker).symbol)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 28)
+            Image(Sticker.forNote(id: note.id, saved: note.sticker).imageName)
+                .resizable()
+                .scaledToFit()
+                // 大きさ・傾きは Web のリスト表示（app/(app)/page.tsx）に合わせた。
+                // 影は付けない（Web もリストとピッカーだけ影なし）
+                .frame(width: 50, height: 50)
+                .rotationEffect(.degrees(16))
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.displayTitle).font(.body).lineLimit(1)
                 Text("\(note.wordCount) 語 ・ \(note.lastViewedAt.formatted(.relative(presentation: .named)))")

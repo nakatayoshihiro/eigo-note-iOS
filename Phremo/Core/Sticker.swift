@@ -14,20 +14,9 @@ enum Sticker: String, CaseIterable {
         return allCases[hash(id) % allCases.count]
     }
 
-    // ⚠️ 暫定。Web はイラスト8種（app/components/stickers/）だが iOS には絵がまだ無いので
-    // SF Symbol で代用している。絵をアセットカタログに入れたらここを差し替える
-    var symbol: String {
-        switch self {
-        case .business: "briefcase.fill"
-        case .diary: "book.closed.fill"
-        case .diamond: "diamond.fill"
-        case .interview: "person.2.fill"
-        case .listening: "headphones"
-        case .speaking: "bubble.left.and.bubble.right.fill"
-        case .test: "checkmark.square.fill"
-        case .travel: "airplane"
-        }
-    }
+    // 絵は Assets.xcassets/Stickers/。Web の tsx から scripts/import-stickers.py で
+    // 起こしたものなので、描き直すときは Web 側を直してスクリプトを流す
+    var imageName: String { "sticker-\(rawValue)" }
 
     // lib/sticker.ts の hashString と同じ計算。JS の `h = (h << 5) - h + code; h |= 0`
     // ＝ 32bit で丸めながら回すので、Int32 のオーバーフロー演算子で同じ値にする
