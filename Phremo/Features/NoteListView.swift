@@ -5,6 +5,8 @@ struct NoteListView: View {
 
     @State private var notes: [Note] = []
     @State private var phase: Phase = .loading
+    // 選択はノートそのものではなく id で持つ。引っ張って更新しても選択が生き残る
+    @State private var selectedID: Note.ID?
 
     enum Phase {
         case loading
@@ -23,7 +25,13 @@ struct NoteListView: View {
                     ToolbarItem(placement: .topBarLeading) { SignOutButton(auth: auth) }
                 }
         } detail: {
-            ContentUnavailableView("ノートを選んでください", systemImage: "note.text")
+            // iPad は右列に本文（横向きなら一覧と並ぶ）。iPhone では画面が畳まれ、
+            // 行をタップすると本文が push される
+            if let note = notes.first(where: { $0.id == selectedID }) {
+                NoteDetailView(note: note)
+            } else {
+                ContentUnavailableView("ノートを選んでください", systemImage: "note.text")
+            }
         }
         .task { await load() }
     }
@@ -51,13 +59,8 @@ struct NoteListView: View {
             )
 
         case .loaded:
-            List(notes) { note in
-                NavigationLink(value: note) {
-                    row(for: note)
-                }
-            }
-            .navigationDestination(for: Note.self) { note in
-                NoteDetailView(note: note)
+            List(notes, selection: $selectedID) { note in
+                row(for: note)
             }
             .refreshable { await load() }
         }
