@@ -45,10 +45,25 @@ enum APIClient {
         return decoder
     }()
 
-    static func get<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
+    // ⚠️ クエリは path に混ぜず query で渡すこと。URL.appending(path:) は渡された文字列を
+    // まるごと1つのパス要素として扱うので、"?" が %3F にエスケープされる
+    // （"/api/words?noteId=x" → "/api/words%3FnoteId=x"）。404 になるだけで例外は出ず、
+    // 「取得できないが画面は動く」という気づきにくい壊れ方をする
+    static func get<T: Decodable>(
+        _ path: String,
+        query: [URLQueryItem] = [],
+        as type: T.Type
+    ) async throws -> T {
         guard let token = SessionStore.read() else { throw APIError.unauthorized }
 
-        var request = URLRequest(url: AppConfig.baseURL.appending(path: path))
+        var components = URLComponents(
+            url: AppConfig.baseURL.appending(path: path),
+            resolvingAgainstBaseURL: false
+        )
+        if !query.isEmpty { components?.queryItems = query }
+        guard let url = components?.url else { throw APIError.invalidResponse }
+
+        var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await session.data(for: request)
