@@ -57,13 +57,7 @@ struct NoteListView: View {
                 }
             }
             .navigationDestination(for: Note.self) { note in
-                // 本文は現状 TipTap の HTML なので、ここで正しく描画するには
-                // 表示用の形式（ProseMirror JSON）への移行が先。今は一覧までを繋ぐ
-                ContentUnavailableView(
-                    note.displayTitle,
-                    systemImage: "doc.text",
-                    description: Text("本文の表示はこれから実装します。")
-                )
+                NoteDetailView(note: note)
             }
             .refreshable { await load() }
         }
