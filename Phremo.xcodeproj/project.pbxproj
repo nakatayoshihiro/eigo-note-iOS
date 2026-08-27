@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		AA1800000000000000000000 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 137585EF303DCCDA00426B72 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 137585F6303DCCDA00426B72;
+			remoteInfo = Phremo;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		137585F7303DCCDA00426B72 /* Phremo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Phremo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA1300000000000000000000 /* PhremoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhremoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = Phremo;
 			sourceTree = "<group>";
 		};
+		AA1200000000000000000000 /* PhremoUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PhremoUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		137585F4303DCCDA00426B72 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA1500000000000000000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				137585F9303DCCDA00426B72 /* Phremo */,
+				AA1200000000000000000000 /* PhremoUITests */,
 				137585F8303DCCDA00426B72 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				137585F7303DCCDA00426B72 /* Phremo.app */,
+				AA1300000000000000000000 /* PhremoUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = 137585F7303DCCDA00426B72 /* Phremo.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AA1100000000000000000000 /* PhremoUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA1900000000000000000000 /* Build configuration list for PBXNativeTarget "PhremoUITests" */;
+			buildPhases = (
+				AA1400000000000000000000 /* Sources */,
+				AA1500000000000000000000 /* Frameworks */,
+				AA1600000000000000000000 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA1700000000000000000000 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA1200000000000000000000 /* PhremoUITests */,
+			);
+			name = PhremoUITests;
+			packageProductDependencies = (
+			);
+			productName = PhremoUITests;
+			productReference = AA1300000000000000000000 /* PhremoUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,10 @@
 				TargetAttributes = {
 					137585F6303DCCDA00426B72 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					AA1100000000000000000000 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 137585F6303DCCDA00426B72;
 					};
 				};
 			};
@@ -101,12 +153,20 @@
 			projectRoot = "";
 			targets = (
 				137585F6303DCCDA00426B72 /* Phremo */,
+				AA1100000000000000000000 /* PhremoUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		137585F5303DCCDA00426B72 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA1600000000000000000000 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -123,7 +183,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA1400000000000000000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA1700000000000000000000 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 137585F6303DCCDA00426B72 /* Phremo */;
+			targetProxy = AA1800000000000000000000 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13758600303DCCDB00426B72 /* Debug */ = {
@@ -315,6 +390,40 @@
 			};
 			name = Release;
 		};
+		AA1A00000000000000000000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CGNCF8G8U6;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.phremo.PhremoUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Phremo;
+			};
+			name = Debug;
+		};
+		AA1B00000000000000000000 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CGNCF8G8U6;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.phremo.PhremoUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Phremo;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -332,6 +441,15 @@
 			buildConfigurations = (
 				13758603303DCCDB00426B72 /* Debug */,
 				13758604303DCCDB00426B72 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA1900000000000000000000 /* Build configuration list for PBXNativeTarget "PhremoUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA1A00000000000000000000 /* Debug */,
+				AA1B00000000000000000000 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
