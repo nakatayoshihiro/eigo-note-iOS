@@ -86,10 +86,11 @@
 				};
 			};
 			buildConfigurationList = 137585F2303DCCDA00426B72 /* Build configuration list for PBXProject "Phremo" */;
-			developmentRegion = en;
+			developmentRegion = ja;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ja,
 				Base,
 			);
 			mainGroup = 137585EE303DCCDA00426B72;
