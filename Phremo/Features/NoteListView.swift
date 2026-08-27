@@ -20,11 +20,7 @@ struct NoteListView: View {
             content
                 .navigationTitle("ノート")
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("ログアウト", systemImage: "rectangle.portrait.and.arrow.right") {
-                            auth.signOut()
-                        }
-                    }
+                    ToolbarItem(placement: .topBarLeading) { SignOutButton(auth: auth) }
                 }
         } detail: {
             ContentUnavailableView("ノートを選んでください", systemImage: "note.text")
