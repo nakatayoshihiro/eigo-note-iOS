@@ -5,7 +5,12 @@ import SwiftUI
 struct NoteDetailView: View {
     let note: Note
 
-    private var blocks: [NoteBlock] { NoteBody.parse(html: note.body) }
+    // 本文に塗る単語。Web と同じく「このノートから登録した単語」だけを引く
+    @State private var words: [Word] = []
+
+    private var blocks: [NoteBlock] {
+        NoteBody.highlight(NoteBody.parse(html: note.body), words: words)
+    }
 
     var body: some View {
         ScrollView {
@@ -21,6 +26,8 @@ struct NoteDetailView: View {
         // タイトルは本文の先頭に大きく出しているので、バーには入れない
         // （入れると同じ名前が上下に二重に並ぶ）
         .navigationBarTitleDisplayMode(.inline)
+        // 単語が来ていなくても本文は先に出す。塗りは届いた時点で付く
+        .task(id: note.id) { await loadWords() }
     }
 
     private var header: some View {
@@ -95,6 +102,20 @@ struct NoteDetailView: View {
             }
             .padding(.leading, CGFloat(depth) * 20)
             .padding(.vertical, 3)
+        }
+    }
+
+    private func loadWords() async {
+        do {
+            words = try await APIClient.get(
+                "/api/words",
+                query: [URLQueryItem(name: "noteId", value: note.id)],
+                as: [Word].self
+            )
+        } catch {
+            // 塗りが無くても本文は読める。ここで画面を止めない
+            words = []
+            print("note words load failed: \(error)")
         }
     }
 

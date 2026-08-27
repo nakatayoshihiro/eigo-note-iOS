@@ -31,6 +31,56 @@ struct NoteBlock: Identifiable {
 }
 
 enum NoteBody {
+    // 本文に現れる登録済みの単語を塗る。対象は「そのノートから登録した単語」だけで、
+    // Web のエディタ（TiptapEditor の buildDecorations）と同じ範囲。
+    //
+    // 一致の規則も Web の surfaceRegex に合わせる＝大文字小文字を区別する完全一致で、
+    // surface が英数字で始まる（終わる）ときだけ、その側に単語境界を要求する。
+    // 境界を常に付けないのは "'s" や記号で始まる surface を取りこぼさないため。
+    static func highlight(_ blocks: [NoteBlock], words: [Word]) -> [NoteBlock] {
+        let patterns = words
+            .map(\.surface)
+            .filter { !$0.isEmpty }
+            .compactMap { surface -> NSRegularExpression? in
+                let alnum = CharacterSet.alphanumerics
+                // ⚠️ \b は使えない。NSRegularExpression（ICU）の \b は Unicode 基準で、
+                // 仮名や漢字も語の文字として数える。一方 Web 側の JS 正規表現（/u 無し）は
+                // ASCII 基準なので、「これはgrantです」のような日英混在で結果が食い違う
+                // （ICU は境界なしと見て塗らない）。ASCII の境界を先読み・後読みで自分で書く
+                let head = surface.unicodeScalars.first.map(alnum.contains) == true ? "(?<![A-Za-z0-9_])" : ""
+                let tail = surface.unicodeScalars.last.map(alnum.contains) == true ? "(?![A-Za-z0-9_])" : ""
+                return try? NSRegularExpression(
+                    pattern: head + NSRegularExpression.escapedPattern(for: surface) + tail
+                )
+            }
+        guard !patterns.isEmpty else { return blocks }
+
+        return blocks.map { block in
+            var text = block.text
+            let plain = String(text.characters)
+            let whole = NSRange(plain.startIndex..., in: plain)
+
+            for pattern in patterns {
+                for match in pattern.matches(in: plain, range: whole) {
+                    guard let found = Range(match.range, in: plain) else { continue }
+                    let start = plain.distance(from: plain.startIndex, to: found.lowerBound)
+                    let length = plain.distance(from: found.lowerBound, to: found.upperBound)
+                    let lower = text.index(text.startIndex, offsetByCharacters: start)
+                    let upper = text.index(lower, offsetByCharacters: length)
+                    text[lower..<upper].backgroundColor = marker
+                    // ⚠️ 文字色も固定する。Web は乗算で白い紙の上に重ねる前提だが、
+                    // iOS はダークモードだと地が黒く、既定の白文字が帯の上で読めなくなる
+                    text[lower..<upper].foregroundColor = markerInk
+                }
+            }
+            return NoteBlock(kind: block.kind, text: text)
+        }
+    }
+
+    // Web の --word-marker（globals.css）と同じ色
+    private static let marker = Color(hex: 0xffdac0)
+    private static let markerInk = Color(hex: 0x2f2f2f)
+
     static func parse(html: String) -> [NoteBlock] {
         // XMLParser に通すための下ごしらえ。Tiptap の出力は HTML なので、閉じない要素と
         // HTML 固有の実体参照だけ直せば XML として読める（&amp; &lt; &gt; は XML と共通）
