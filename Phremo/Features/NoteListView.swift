@@ -21,9 +21,6 @@ struct NoteListView: View {
         NavigationSplitView {
             content
                 .navigationTitle("ノート")
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) { SignOutButton(auth: auth) }
-                }
         } detail: {
             // iPad は右列に本文（横向きなら一覧と並ぶ）。iPhone では画面が畳まれ、
             // 行をタップすると本文が push される

@@ -34,7 +34,6 @@ struct WordListView: View {
                 .navigationTitle("単語帳")
                 .searchable(text: $query, prompt: "単語・訳・派生語")
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) { SignOutButton(auth: auth) }
                     ToolbarItem(placement: .topBarTrailing) { posMenu }
                 }
         } detail: {

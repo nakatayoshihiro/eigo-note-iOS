@@ -3,6 +3,9 @@ import Foundation
 enum APIError: Error {
     case unauthorized          // 401。トークンが無効か期限切れ
     case server(status: Int)
+    // better-auth はエラーの理由を本文の code で返す（例: SESSION_EXPIRED）。
+    // 状態によって出し分ける必要があるので、ステータスだけでなく code も持つ
+    case api(status: Int, code: String?)
     case invalidResponse
 }
 
@@ -49,6 +52,24 @@ enum APIClient {
     // まるごと1つのパス要素として扱うので、"?" が %3F にエスケープされる
     // （"/api/words?noteId=x" → "/api/words%3FnoteId=x"）。404 になるだけで例外は出ず、
     // 「取得できないが画面は動く」という気づきにくい壊れ方をする
+    // 本文を送らない POST（退会など）。返ってきた本文は使わないので捨てる
+    static func post(_ path: String, body: [String: Any] = [:]) async throws {
+        guard let token = SessionStore.read() else { throw APIError.unauthorized }
+
+        var request = URLRequest(url: AppConfig.baseURL.appending(path: path))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let code = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            throw APIError.api(status: http.statusCode, code: code?["code"] as? String)
+        }
+    }
+
     static func get<T: Decodable>(
         _ path: String,
         query: [URLQueryItem] = [],

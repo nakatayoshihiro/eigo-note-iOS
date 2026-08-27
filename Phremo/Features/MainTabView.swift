@@ -1,7 +1,7 @@
 import SwiftUI
 
 // ログイン後の入口。Web のサイドバー（すべてのノート / 単語帳 / 復習テスト）に
-// 対応するが、復習テストはブラウザ版が Coming Soon なので今は2つだけ。
+// 対応するが、復習テストはブラウザ版が Coming Soon なので出していない。
 //
 // タブの中身がそれぞれ NavigationSplitView なので、iPhone は1カラムのドリルダウン、
 // iPad は一覧＋詳細の2カラムになる。
@@ -15,6 +15,9 @@ struct MainTabView: View {
             }
             Tab("単語帳", systemImage: "character.book.closed") {
                 WordListView(auth: auth)
+            }
+            Tab("設定", systemImage: "gearshape") {
+                SettingsView(auth: auth)
             }
         }
     }
