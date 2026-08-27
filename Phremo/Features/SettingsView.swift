@@ -32,6 +32,9 @@ struct SettingsView: View {
             HStack(spacing: 12) {
                 Text(user?.initial ?? "")
                     .font(.headline)
+                    // ⚠️ 地の色を固定しているので文字色も固定する。既定のままだと
+                    // ダークモードで白文字になり、薄い地の上で読めなくなる
+                    .foregroundStyle(Color(hex: 0x2f2f2f))
                     .frame(width: 48, height: 48)
                     .background(Color(hex: 0xf0ece4), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
