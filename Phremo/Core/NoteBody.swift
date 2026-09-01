@@ -120,9 +120,14 @@ enum NoteBody {
                 add(.heading(level: node.attrs?.level ?? 1), from: node, into: &blocks)
 
             case "blockquote":
-                // 引用の中は段落。行ごとに引用として描く（縦線は描画側が引く）
+                // 引用の中は基本が段落。行ごとに引用として描く（縦線は描画側が引く）。
+                // 段落以外（水平線・リスト）も入れられるので、それは普通のブロックとして扱う
                 for child in node.content ?? [] {
-                    add(.quote, from: child, into: &blocks)
+                    if child.type == "paragraph" {
+                        add(.quote, from: child, into: &blocks)
+                    } else {
+                        append([child], depth: depth, into: &blocks)
+                    }
                 }
 
             case "horizontalRule":
