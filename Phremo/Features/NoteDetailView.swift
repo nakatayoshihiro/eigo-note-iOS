@@ -54,9 +54,22 @@ struct NoteDetailView: View {
         // タイトルは本文の先頭に大きく出しているので、バーには入れない
         // （入れると同じ名前が上下に二重に並ぶ）
         .navigationBarTitleDisplayMode(.inline)
-        // 本文と単語は独立に届く。塗りは単語が来た時点で付く
-        .task(id: note.id) { await loadBody() }
-        .task(id: note.id) { await loadWords() }
+        // 本文と単語は独立に届く。塗りは単語が来た時点で付く。
+        //
+        // ⚠️ `.task(id:)` を使わないこと。あれはビューが作り直された時点で中の通信を
+        // 打ち切る。この画面は一覧（NoteListView の detail:）が `notes.first(where:)`
+        // から組み立てていて、一覧が更新されるたびに作り直されるので、走っている取得が
+        // 巻き添えで死ぬ（URLSession は -999 cancelled を返す）。実機で本文が
+        // 「読み込めませんでした」になり続けた原因がこれ（2026-09-01）。
+        // 以前は単語の取得しか無く、失敗しても塗りが付かないだけで気づけなかった。
+        .onAppear { loadIfNeeded() }
+        // iPad は詳細のビューが作り直されず中身だけ差し替わるので、onAppear では
+        // 2件目以降が読み込まれない。ノートが変わったら明示的に取り直す
+        .onChange(of: note.id) { _, _ in
+            source = nil
+            words = []
+            loadIfNeeded()
+        }
     }
 
     private var header: some View {
@@ -132,6 +145,13 @@ struct NoteDetailView: View {
             .padding(.leading, CGFloat(depth) * 20)
             .padding(.vertical, 3)
         }
+    }
+
+    // 取得は構造化タスクの外（Task {}）で走らせる。上のコメントのとおり、
+    // ビューに紐づけるとビューの作り直しで打ち切られるため
+    private func loadIfNeeded() {
+        if source == nil { Task { await loadBody() } }
+        if words.isEmpty { Task { await loadWords() } }
     }
 
     private func loadBody() async {
