@@ -3,19 +3,47 @@ import SwiftUI
 // ノート1件の表示。読み取り専用（編集はブラウザ版）。
 // 本文の読み替えは Core/NoteBody.swift。
 struct NoteDetailView: View {
+    // 一覧から渡ってくるノート。ここには本文の木（bodyJson）が入っていないので、
+    // 開いたときに1件取得し直す（一覧に全員ぶんの本文を載せると応答が膨らむため、
+    // サーバーが一覧では返さない）
     let note: Note
 
     // 本文に塗る単語。Web と同じく「このノートから登録した単語」だけを引く
     @State private var words: [Word] = []
+    @State private var source: BodySource?
+
+    // 届いた本文。旧形式が残っている行だけ .legacy に落ちる（NoteBody.plainBlocks 参照）
+    private enum BodySource {
+        case doc(NoteDoc)
+        case legacy(String)
+        case failed
+    }
 
     private var blocks: [NoteBlock] {
-        NoteBody.highlight(NoteBody.parse(html: note.body), words: words)
+        let parsed: [NoteBlock] =
+            switch source {
+            case .doc(let doc): NoteBody.parse(doc)
+            case .legacy(let html): NoteBody.plainBlocks(fromLegacy: html)
+            default: []
+            }
+        return NoteBody.highlight(parsed, words: words)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
+                // 取得できるまでの間。本文が空なのか読み込み中なのかを分かるようにする
+                switch source {
+                case .none:
+                    ProgressView().padding(.vertical, 24)
+                case .failed:
+                    Text("本文を読み込めませんでした")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                default:
+                    EmptyView()
+                }
                 ForEach(blocks) { block in
                     row(for: block)
                 }
@@ -26,7 +54,8 @@ struct NoteDetailView: View {
         // タイトルは本文の先頭に大きく出しているので、バーには入れない
         // （入れると同じ名前が上下に二重に並ぶ）
         .navigationBarTitleDisplayMode(.inline)
-        // 単語が来ていなくても本文は先に出す。塗りは届いた時点で付く
+        // 本文と単語は独立に届く。塗りは単語が来た時点で付く
+        .task(id: note.id) { await loadBody() }
         .task(id: note.id) { await loadWords() }
     }
 
@@ -102,6 +131,16 @@ struct NoteDetailView: View {
             }
             .padding(.leading, CGFloat(depth) * 20)
             .padding(.vertical, 3)
+        }
+    }
+
+    private func loadBody() async {
+        do {
+            let full = try await APIClient.get("/api/notes/\(note.id)", as: Note.self)
+            source = full.bodyJson.map(BodySource.doc) ?? .legacy(full.body)
+        } catch {
+            source = .failed
+            print("note body load failed: \(error)")
         }
     }
 
