@@ -18,20 +18,17 @@ import WebKit
 //   → JS   window.phremoEditor.setDoc(doc) / .focus()
 //   ← JS   { type: "ready" | "update" | "selection", ... }
 struct NoteEditorWebView: UIViewRepresentable {
-    let doc: NoteDoc?
-    /// 計測モード（スパイク）。"full" / "small" / "plain"
-    var mode: String = "full"
+    /// 本文。サーバーから来た JSON の**文字列**をそのまま渡す（型に変換しない）
+    let document: String?
+    /// 本文で塗る単語。同じく JSON の文字列
+    let words: String?
     /// 本文が変わった。渡すのは JSON の**文字列**。
     /// ⚠️ ここで Swift の型に変換しないこと。5.7万字のノートだと変換だけで
     /// メインスレッドが数百 ms 止まり、それが入力とカーソル移動の遅れになる
     /// （実機で確認。2026-09-02）。サーバーへはこの文字列のまま送る
     var onChange: (String) -> Void = { _ in }
-    /// 起動にかかった時間（スパイクの計測用）
-    var onReady: (Int) -> Void = { _ in }
-    /// HTML までは動いた（切り分け用）
-    var onBoot: () -> Void = {}
-    /// JS の実行時エラー（切り分け用）
-    var onError: (String) -> Void = { _ in }
+    /// エディタが使えるようになった
+    var onReady: () -> Void = {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -50,6 +47,9 @@ struct NoteEditorWebView: UIViewRepresentable {
         // 端末に任せる。自前でスクロールを持つと、キーボードが出た時の追従を
         // 二重に管理することになる（WebView 実装の最大の落とし穴がここ）
         webView.scrollView.keyboardDismissMode = .interactive
+        // ナビゲーションバーのぶんを常に空ける。既定（automatic）だと本文の1行目が
+        // バーの下に潜って読めない
+        webView.scrollView.contentInsetAdjustmentBehavior = .always
 
         guard let url = Bundle.main.url(forResource: "editor", withExtension: "html") else {
             assertionFailure("editor.html が見つからない（npm run build:editor を流したか）")
@@ -61,8 +61,7 @@ struct NoteEditorWebView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.sendDocIfReady(to: webView)
-        context.coordinator.applyMode(to: webView, mode: mode)
+        context.coordinator.sync(with: webView)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -74,20 +73,28 @@ struct NoteEditorWebView: UIViewRepresentable {
             self.parent = parent
         }
 
-        private var appliedMode = "full"
+        private var sentWords: String?
 
-        func applyMode(to webView: WKWebView, mode: String) {
-            guard isReady, mode != appliedMode else { return }
-            appliedMode = mode
-            webView.evaluateJavaScript("window.phremoEditor.setMode('\(mode)')")
+        /// 届いたものをエディタへ渡す。本文は最初の1回だけ（以降はエディタが持つ）、
+        /// 単語は変わるたびに渡し直す
+        func sync(with webView: WKWebView) {
+            guard isReady else { return }
+            if !sentDoc, let document = parent.document {
+                sentDoc = true
+                webView.evaluateJavaScript("window.phremoEditor.setDoc(\(quoted(document)))")
+            }
+            if let words = parent.words, words != sentWords {
+                sentWords = words
+                webView.evaluateJavaScript("window.phremoEditor.setWords(\(quoted(words)))")
+            }
         }
 
-        func sendDocIfReady(to webView: WKWebView) {
-            guard isReady, !sentDoc, let doc = parent.doc else { return }
-            guard let data = try? JSONEncoder().encode(doc),
-                  let json = String(data: data, encoding: .utf8) else { return }
-            sentDoc = true
-            webView.evaluateJavaScript("window.phremoEditor.setDoc(\(json))")
+        /// JSON を JS の文字列リテラルとして渡す。JSONSerialization に文字列を
+        /// 1つだけ書かせて、引用符とエスケープを任せる（自前で組むと壊れる）
+        private func quoted(_ raw: String) -> String {
+            guard let data = try? JSONSerialization.data(withJSONObject: raw, options: .fragmentsAllowed),
+                  let literal = String(data: data, encoding: .utf8) else { return "\"\"" }
+            return literal
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -104,14 +111,12 @@ struct NoteEditorWebView: UIViewRepresentable {
             switch type {
             case "ready":
                 isReady = true
-                parent.onReady(body["ms"] as? Int ?? -1)
-                if let webView = message.webView { sendDocIfReady(to: webView) }
-
-            case "boot":
-                parent.onBoot()
+                parent.onReady()
+                if let webView = message.webView { sync(with: webView) }
 
             case "error":
-                parent.onError(body["message"] as? String ?? "不明なエラー")
+                // 黙って壊れないように残す（画面には出さない）
+                print("editor js error: \(body["message"] ?? "")")
 
             case "update":
                 guard let document = body["doc"] as? String else { return }

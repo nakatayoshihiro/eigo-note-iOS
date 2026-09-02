@@ -1,206 +1,102 @@
 import SwiftUI
 
-// ノート1件の表示。読み取り専用（編集はブラウザ版）。
-// 本文の読み替えは Core/NoteBody.swift。
+// ノート1件の画面。本文の表示と編集をまとめて WebView（Tiptap）が受け持つ。
+//
+// ■ なぜ表示までここに寄せたか
+// Web と同じ機能を出す方針のため、編集は WebView に載せた（[[ios-editor-architecture]]）。
+// 表示だけネイティブに残すと、同じ本文が2つの描画で出て、フォント・行間・選択の挙動が
+// 食い違う。だから読みも WebView に寄せている。
+//
+// ■ 本文は文字列のまま運ぶ
+// サーバーから来た JSON を Swift の型に変換しない。長い本文だと変換だけで画面が止まり、
+// Web 側が付けた未知の属性も落ちるため（APIClient.getRawJSON のコメント参照）。
 struct NoteDetailView: View {
-    // 一覧から渡ってくるノート。ここには本文の木（bodyJson）が入っていないので、
-    // 開いたときに1件取得し直す（一覧に全員ぶんの本文を載せると応答が膨らむため、
-    // サーバーが一覧では返さない）
     let note: Note
 
-    // 本文に塗る単語。Web と同じく「このノートから登録した単語」だけを引く
-    @State private var words: [Word] = []
-    @State private var source: BodySource?
-    // ⚠️ スパイク（2026-09-02）。WebView のエディタを実機で確かめるための入口。
-    // 測るのは3点：日本語入力・キーボードでカーソルが隠れないか・起動にかかる秒数。
-    // 判断が付いたら、この画面ごと WebView に置き換えるか、ここを消す
-    @State private var editing = false
+    @State private var document: String?
+    @State private var words: String?
+    @State private var loadFailed = false
+    @State private var saver: NoteBodySaver
 
-    // 届いた本文。旧形式が残っている行だけ .legacy に落ちる（NoteBody.plainBlocks 参照）
-    private enum BodySource {
-        case doc(NoteDoc)
-        case legacy(String)
-        case failed
-    }
-
-    private var blocks: [NoteBlock] {
-        let parsed: [NoteBlock] =
-            switch source {
-            case .doc(let doc): NoteBody.parse(doc)
-            case .legacy(let html): NoteBody.plainBlocks(fromLegacy: html)
-            default: []
-            }
-        return NoteBody.highlight(parsed, words: words)
+    init(note: Note) {
+        self.note = note
+        _saver = State(initialValue: NoteBodySaver(noteId: note.id))
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                // 取得できるまでの間。本文が空なのか読み込み中なのかを分かるようにする
-                switch source {
-                case .none:
-                    ProgressView().padding(.vertical, 24)
-                case .failed:
-                    Text("本文を読み込めませんでした")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                default:
-                    EmptyView()
-                }
-                ForEach(blocks) { block in
-                    row(for: block)
-                }
+        Group {
+            if let document {
+                NoteEditorWebView(
+                    document: document,
+                    words: words,
+                    onChange: { saver.save(document: $0) }
+                )
+            } else if loadFailed {
+                ContentUnavailableView(
+                    "本文を読み込めませんでした",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text("通信を確認して、開き直してください。")
+                )
+            } else {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // タイトルは本文の先頭に大きく出しているので、バーには入れない
-        // （入れると同じ名前が上下に二重に並ぶ）
+        .ignoresSafeArea(.container, edges: .bottom)
+        .navigationTitle(note.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if case .doc = source {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("編集（実験）") { editing = true }
+            ToolbarItem(placement: .topBarTrailing) {
+                // 自動保存なので、失敗を黙って飲み込まない（Web と同じ扱い）
+                if let failure = saver.failure {
+                    Text(failure).font(.caption).foregroundStyle(.red)
+                } else {
+                    Image(Sticker.forNote(id: note.id, saved: note.sticker).imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .rotationEffect(.degrees(12))
                 }
             }
         }
-        .fullScreenCover(isPresented: $editing) {
-            if case .doc(let doc) = source {
-                EditorSpike(note: note, doc: doc)
-            }
-        }
-        // 本文と単語は独立に届く。塗りは単語が来た時点で付く。
-        //
-        // ⚠️ `.task(id:)` を使わないこと。あれはビューが作り直された時点で中の通信を
-        // 打ち切る。この画面は一覧（NoteListView の detail:）が `notes.first(where:)`
-        // から組み立てていて、一覧が更新されるたびに作り直されるので、走っている取得が
-        // 巻き添えで死ぬ（URLSession は -999 cancelled を返す）。実機で本文が
-        // 「読み込めませんでした」になり続けた原因がこれ（2026-09-01）。
-        // 以前は単語の取得しか無く、失敗しても塗りが付かないだけで気づけなかった。
         .onAppear { loadIfNeeded() }
-        // iPad は詳細のビューが作り直されず中身だけ差し替わるので、onAppear では
-        // 2件目以降が読み込まれない。ノートが変わったら明示的に取り直す
+        // iPad は詳細のビューが作り直されず中身だけ差し替わるので、
+        // ノートが変わったら取り直す
         .onChange(of: note.id) { _, _ in
-            source = nil
-            words = []
+            document = nil
+            words = nil
+            loadFailed = false
+            saver = NoteBodySaver(noteId: note.id)
             loadIfNeeded()
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                Text(note.displayTitle)
-                    .font(.system(size: 28, weight: .bold))
-                    .textSelection(.enabled)
-                Spacer(minLength: 12)
-                Image(Sticker.forNote(id: note.id, saved: note.sticker).imageName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 48, height: 48)
-                    .rotationEffect(.degrees(12))
-            }
-            Text("\(note.wordCount) 語 ・ \(note.lastViewedAt.formatted(.relative(presentation: .named)))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.bottom, 16)
-    }
-
-    @ViewBuilder
-    private func row(for block: NoteBlock) -> some View {
-        switch block.kind {
-        case .rule:
-            Divider().padding(.vertical, 12)
-
-        case .heading:
-            Text(block.text)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 16)
-                .padding(.bottom, 6)
-
-        case .continuation(let depth):
-            Text(block.text)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, CGFloat(depth) * 20 + 20)
-                .padding(.vertical, 3)
-
-        case .paragraph:
-            Text(block.text)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // 空段落は Web でも1行ぶんの間隔になる。高さを持たせないと間隔が消える
-                .frame(minHeight: block.text.characters.isEmpty ? 12 : 0)
-                .padding(.vertical, 4)
-
-        case .quote:
-            HStack(spacing: 12) {
-                Rectangle().fill(.secondary.opacity(0.4)).frame(width: 3)
-                Text(block.text).foregroundStyle(.secondary).textSelection(.enabled)
-            }
-            .padding(.vertical, 4)
-
-        case .bullet(let depth):
-            marker("・", depth: depth, text: block.text)
-
-        case .ordered(let number, let depth):
-            marker("\(number).", depth: depth, text: block.text)
-
-        case .task(let done, let depth):
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: done ? "checkmark.square.fill" : "square")
-                    .foregroundStyle(done ? Color.accentColor : .secondary)
-                Text(block.text)
-                    .strikethrough(done, color: .secondary)
-                    .foregroundStyle(done ? .secondary : .primary)
-                    .textSelection(.enabled)
-            }
-            .padding(.leading, CGFloat(depth) * 20)
-            .padding(.vertical, 3)
-        }
-    }
-
-    // 取得は構造化タスクの外（Task {}）で走らせる。上のコメントのとおり、
-    // ビューに紐づけるとビューの作り直しで打ち切られるため
+    // ⚠️ `.task(id:)` を使わないこと。ビューが作り直されると通信を打ち切るため、
+    // 一覧が更新されるたびに取得が巻き添えで死ぬ（-999 cancelled。2026-09-01 に実機で発生）
     private func loadIfNeeded() {
-        if source == nil { Task { await loadBody() } }
-        if words.isEmpty { Task { await loadWords() } }
+        if document == nil && !loadFailed { Task { await loadBody() } }
+        if words == nil { Task { await loadWords() } }
     }
 
     private func loadBody() async {
         do {
-            let full = try await APIClient.get("/api/notes/\(note.id)", as: Note.self)
-            source = full.bodyJson.map(BodySource.doc) ?? .legacy(full.body)
+            let json = try await APIClient.getRawJSON("/api/notes/\(note.id)")
+            // 本文だけを文字列のまま抜き出す
+            document = APIClient.field("bodyJson", of: json) ?? "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\"}]}"
         } catch {
-            source = .failed
+            loadFailed = true
             print("note body load failed: \(error)")
         }
     }
 
     private func loadWords() async {
         do {
-            words = try await APIClient.get(
+            words = try await APIClient.getRawJSON(
                 "/api/words",
-                query: [URLQueryItem(name: "noteId", value: note.id)],
-                as: [Word].self
+                query: [URLQueryItem(name: "noteId", value: note.id)]
             )
         } catch {
             // 塗りが無くても本文は読める。ここで画面を止めない
-            words = []
             print("note words load failed: \(error)")
         }
-    }
-
-    private func marker(_ symbol: String, depth: Int, text: AttributedString) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(symbol).foregroundStyle(.secondary).monospacedDigit()
-            Text(text).textSelection(.enabled)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, CGFloat(depth) * 20)
-        .padding(.vertical, 3)
     }
 }

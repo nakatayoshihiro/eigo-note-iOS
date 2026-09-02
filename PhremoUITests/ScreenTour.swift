@@ -31,6 +31,9 @@ final class ScreenTour: XCTestCase {
         // ノートを1件開く（本文・ハイライト）
         if app.collectionViews.cells.firstMatch.waitForExistence(timeout: 10) {
             app.collectionViews.cells.element(boundBy: min(4, app.collectionViews.cells.count - 1)).tap()
+            // 本文は WebView（Tiptap）なので、出来上がるのを待ってから撮る
+            _ = app.webViews.firstMatch.waitForExistence(timeout: 15)
+            Thread.sleep(forTimeInterval: 2)
             shoot(app, "02-note-body")
             back(app)
         }

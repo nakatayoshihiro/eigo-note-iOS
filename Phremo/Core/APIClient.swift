@@ -70,6 +70,45 @@ enum APIClient {
         }
     }
 
+    // 中身を読まずに JSON をそのまま受け取る。エディタへ渡す本文と単語に使う。
+    //
+    // ⚠️ Swift の型にしないのは、（1）長い本文だと変換だけでメインスレッドが止まる
+    // （2）Web 側が付けた未知の属性を落としてしまう、の2つの理由から。
+    // アプリは本文の中身を解釈しないので、文字列のまま WebView へ渡せばよい。
+    static func getRawJSON(_ path: String, query: [URLQueryItem] = []) async throws -> String {
+        guard let token = SessionStore.read() else { throw APIError.unauthorized }
+
+        var components = URLComponents(
+            url: AppConfig.baseURL.appending(path: path),
+            resolvingAgainstBaseURL: false
+        )
+        if !query.isEmpty { components?.queryItems = query }
+        guard let url = components?.url else { throw APIError.invalidResponse }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.server(status: http.statusCode)
+        }
+        guard let text = String(data: data, encoding: .utf8) else { throw APIError.invalidResponse }
+        return text
+    }
+
+    /// 応答の JSON から、鍵ひとつぶんを**文字列のまま**取り出す。
+    /// ノート1件の応答から本文（bodyJson）だけを抜くのに使う
+    static func field(_ name: String, of json: String) -> String? {
+        guard let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let value = object[name], !(value is NSNull),
+              let out = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
+        else { return nil }
+        return String(data: out, encoding: .utf8)
+    }
+
     // 本文の保存。JSON を組み立て直さず、渡された文字列をそのまま本文として送る。
     //
     // ⚠️ ここで `[String: Any]` を経由しないこと。5.7万字のノートだと、その変換だけで
