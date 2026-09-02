@@ -7,10 +7,14 @@ import Foundation
 // 本文の正が 2026-09-01 に HTML から JSON になった。HTML を Swift で組み立て直さずに
 // 済むので、これから足す「書く」機能でも同じ木をそのまま送り返せる。
 //
+// ⚠️ 書き出し（Encodable）は、この型が知っている鍵しか残さない。ノードやマークに
+// Web 側が付けた未知の属性は落ちる。エディタへ本文を渡すだけならサーバーから来た
+// JSON をそのまま流す方が安全で、本採用のときはそちらへ寄せること。
+//
 // ■ 未知のノード・マークについて
 // 知らない type は落とさず中身だけ拾う（NoteBody.parse）。Web 側に拡張が増えたときに
 // 本文が丸ごと消えるより、装飾が付かないだけの方がましなため。
-struct NoteDoc: Decodable, Hashable {
+struct NoteDoc: Codable, Hashable {
     let type: String
     let content: [NoteDoc]?
     let text: String?
@@ -18,7 +22,7 @@ struct NoteDoc: Decodable, Hashable {
     let attrs: NoteAttrs?
 }
 
-struct NoteMark: Decodable, Hashable {
+struct NoteMark: Codable, Hashable {
     let type: String
     let attrs: NoteAttrs?
 }
@@ -26,7 +30,7 @@ struct NoteMark: Decodable, Hashable {
 // ノードとマークの属性をまとめて1つで受ける。使う場所ごとに現れる鍵が違う
 // （heading は level、taskItem は checked、link は href、textStyle は color と fontSize）。
 // 知らない鍵は Decodable が黙って捨てる
-struct NoteAttrs: Decodable, Hashable {
+struct NoteAttrs: Codable, Hashable {
     let level: Int?
     let checked: Bool?
     let start: Int?

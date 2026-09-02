@@ -11,6 +11,10 @@ struct NoteDetailView: View {
     // 本文に塗る単語。Web と同じく「このノートから登録した単語」だけを引く
     @State private var words: [Word] = []
     @State private var source: BodySource?
+    // ⚠️ スパイク（2026-09-02）。WebView のエディタを実機で確かめるための入口。
+    // 測るのは3点：日本語入力・キーボードでカーソルが隠れないか・起動にかかる秒数。
+    // 判断が付いたら、この画面ごと WebView に置き換えるか、ここを消す
+    @State private var editing = false
 
     // 届いた本文。旧形式が残っている行だけ .legacy に落ちる（NoteBody.plainBlocks 参照）
     private enum BodySource {
@@ -54,6 +58,18 @@ struct NoteDetailView: View {
         // タイトルは本文の先頭に大きく出しているので、バーには入れない
         // （入れると同じ名前が上下に二重に並ぶ）
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if case .doc = source {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("編集（実験）") { editing = true }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $editing) {
+            if case .doc(let doc) = source {
+                EditorSpike(note: note, doc: doc)
+            }
+        }
         // 本文と単語は独立に届く。塗りは単語が来た時点で付く。
         //
         // ⚠️ `.task(id:)` を使わないこと。あれはビューが作り直された時点で中の通信を
