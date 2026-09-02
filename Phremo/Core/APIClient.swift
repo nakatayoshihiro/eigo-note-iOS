@@ -70,6 +70,30 @@ enum APIClient {
         }
     }
 
+    // 本文の保存。JSON を組み立て直さず、渡された文字列をそのまま本文として送る。
+    //
+    // ⚠️ ここで `[String: Any]` を経由しないこと。5.7万字のノートだと、その変換だけで
+    // メインスレッドが数百 ms 止まる（実機で確認済み。2026-09-02）。エディタから来る
+    // ドキュメントはアプリが中身を読む必要が無いので、文字列のまま素通しでよい。
+    // 未知の属性を落とさない、という意味でもこの経路が正しい。
+    static func patchRawJSON(_ path: String, body: String) async throws {
+        guard let token = SessionStore.read() else { throw APIError.unauthorized }
+
+        var request = URLRequest(url: AppConfig.baseURL.appending(path: path))
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data(body.utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            let code = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            throw APIError.api(status: http.statusCode, code: code?["error"] as? String)
+        }
+    }
+
     static func get<T: Decodable>(
         _ path: String,
         query: [URLQueryItem] = [],

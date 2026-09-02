@@ -21,12 +21,11 @@ struct NoteEditorWebView: UIViewRepresentable {
     let doc: NoteDoc?
     /// 計測モード（スパイク）。"full" / "small" / "plain"
     var mode: String = "full"
-    /// 本文が変わった。
-    /// ⚠️ スパイクでは中身を受け取らない。ドキュメントを毎回 NoteDoc に変換すると、
-    /// 15万文字のノートではメインスレッドが数百 ms 単位で止まる（それが入力と
-    /// カーソル移動の遅れになる）。本採用するときは、サーバーへ渡す JSON を
-    /// **文字列のまま**持ち回るか、変換を別スレッドへ逃がすこと
-    var onChange: () -> Void = {}
+    /// 本文が変わった。渡すのは JSON の**文字列**。
+    /// ⚠️ ここで Swift の型に変換しないこと。5.7万字のノートだと変換だけで
+    /// メインスレッドが数百 ms 止まり、それが入力とカーソル移動の遅れになる
+    /// （実機で確認。2026-09-02）。サーバーへはこの文字列のまま送る
+    var onChange: (String) -> Void = { _ in }
     /// 起動にかかった時間（スパイクの計測用）
     var onReady: (Int) -> Void = { _ in }
     /// HTML までは動いた（切り分け用）
@@ -115,7 +114,8 @@ struct NoteEditorWebView: UIViewRepresentable {
                 parent.onError(body["message"] as? String ?? "不明なエラー")
 
             case "update":
-                parent.onChange()
+                guard let document = body["doc"] as? String else { return }
+                parent.onChange(document)
 
             default:
                 break

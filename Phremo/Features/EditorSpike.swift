@@ -5,15 +5,22 @@ import SwiftUI
 //   1. 日本語入力（変換・確定）が壊れないか
 //   2. キーボードが出た時にカーソルが隠れないか、打鍵にスクロールが追従するか
 //   3. 編集できるようになるまで何秒か
-// 保存はしない（読み込んで触るだけ）。判断が付いたらこのファイルごと消すか、
-// 本採用してノート画面そのものに置き換える。
+// 2026-09-02 から保存もする（本文だけ）。判断が付いたらこのファイルごと消して、
+// ノート画面そのものを WebView に置き換える。
 struct EditorSpike: View {
     let note: Note
     let doc: NoteDoc
 
+    init(note: Note, doc: NoteDoc) {
+        self.note = note
+        self.doc = doc
+        _saver = State(initialValue: NoteBodySaver(noteId: note.id))
+    }
+
     @Environment(\.dismiss) private var dismiss
     @State private var readyMs: Int?
     @State private var changes = 0
+    @State private var saver: NoteBodySaver
     @State private var booted = false
     @State private var mode = "full"
     @State private var jsError: String?
@@ -23,7 +30,10 @@ struct EditorSpike: View {
             NoteEditorWebView(
                 doc: doc,
                 mode: mode,
-                onChange: { changes += 1 },
+                onChange: { document in
+                    changes += 1
+                    saver.save(document: document)
+                },
                 onReady: { readyMs = $0 },
                 onBoot: { booted = true },
                 onError: { jsError = $0 }
@@ -53,9 +63,12 @@ struct EditorSpike: View {
 
     private var status: String {
         if let jsError { return "JS エラー: \(jsError)" }
+        if let failure = saver.failure { return failure }
         guard let readyMs else {
             return booted ? "HTML は読めた／エディタが起動しない" : "起動中…"
         }
-        return "起動 \(readyMs)ms ・ 変更 \(changes) 回 ・ 保存はしません"
+        if saver.isSaving { return "保存中…" }
+        if saver.savedAt != nil { return "保存しました ・ 変更 \(changes) 回" }
+        return "起動 \(readyMs)ms ・ 変更 \(changes) 回"
     }
 }
