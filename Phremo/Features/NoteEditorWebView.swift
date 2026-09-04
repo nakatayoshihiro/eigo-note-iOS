@@ -47,8 +47,10 @@ struct NoteEditorWebView: UIViewRepresentable {
         // 端末に任せる。自前でスクロールを持つと、キーボードが出た時の追従を
         // 二重に管理することになる（WebView 実装の最大の落とし穴がここ）
         webView.scrollView.keyboardDismissMode = .interactive
-        // ナビゲーションバーのぶんを常に空ける。既定（automatic）だと本文の1行目が
-        // バーの下に潜って読めない
+        // 下の safe area（ホームインジケータ）のぶんを空ける。
+        // ⚠️ 上には効いていない。SwiftUI が WebView の frame をナビバーの下から
+        // 始めているので safeAreaInsets.top は 0（実機で計測。2026-09-04）。
+        // 「本文の1行目がバーに潜る」の原因はここではなく setDoc のスクロールだった
         webView.scrollView.contentInsetAdjustmentBehavior = .always
 
         guard let url = Bundle.main.url(forResource: "editor", withExtension: "html") else {
@@ -126,5 +128,6 @@ struct NoteEditorWebView: UIViewRepresentable {
                 break
             }
         }
+
     }
 }
