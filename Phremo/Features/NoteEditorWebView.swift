@@ -15,18 +15,24 @@ import WebKit
 // 無いのでオフラインで開ける。**このファイルを手で編集しないこと**（次のビルドで消える）。
 //
 // ■ やり取り
-//   → JS   window.phremoEditor.setDoc(doc) / .focus()
-//   ← JS   { type: "ready" | "update" | "selection", ... }
+//   → JS   window.phremoEditor.setDoc(doc) / .setTitle(title) / .focusTitle() / .focus()
+//   ← JS   { type: "ready" | "update" | "title" | "selection", ... }
 struct NoteEditorWebView: UIViewRepresentable {
     /// 本文。サーバーから来た JSON の**文字列**をそのまま渡す（型に変換しない）
     let document: String?
+    /// タイトル。本文と同じく最初の1回だけ渡す（以降はエディタが持つ）
+    let title: String
     /// 本文で塗る単語。同じく JSON の文字列
     let words: String?
+    /// 開いたらタイトルにカーソルを置く（作ったばかりのノート）
+    var focusTitle = false
     /// 本文が変わった。渡すのは JSON の**文字列**。
     /// ⚠️ ここで Swift の型に変換しないこと。5.7万字のノートだと変換だけで
     /// メインスレッドが数百 ms 止まり、それが入力とカーソル移動の遅れになる
     /// （実機で確認。2026-09-02）。サーバーへはこの文字列のまま送る
     var onChange: (String) -> Void = { _ in }
+    /// タイトルが変わった
+    var onTitleChange: (String) -> Void = { _ in }
     /// エディタが使えるようになった
     var onReady: () -> Void = {}
 
@@ -83,7 +89,11 @@ struct NoteEditorWebView: UIViewRepresentable {
             guard isReady else { return }
             if !sentDoc, let document = parent.document {
                 sentDoc = true
+                webView.evaluateJavaScript("window.phremoEditor.setTitle(\(quoted(parent.title)))")
                 webView.evaluateJavaScript("window.phremoEditor.setDoc(\(quoted(document)))")
+                if parent.focusTitle {
+                    webView.evaluateJavaScript("window.phremoEditor.focusTitle()")
+                }
             }
             if let words = parent.words, words != sentWords {
                 sentWords = words
@@ -123,6 +133,10 @@ struct NoteEditorWebView: UIViewRepresentable {
             case "update":
                 guard let document = body["doc"] as? String else { return }
                 parent.onChange(document)
+
+            case "title":
+                guard let title = body["title"] as? String else { return }
+                parent.onTitleChange(title)
 
             default:
                 break

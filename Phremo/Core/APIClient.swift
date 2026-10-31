@@ -6,6 +6,9 @@ enum APIError: Error {
     // better-auth はエラーの理由を本文の code で返す（例: SESSION_EXPIRED）。
     // 状態によって出し分ける必要があるので、ステータスだけでなく code も持つ
     case api(status: Int, code: String?)
+    // 断られた理由を本文ごと持つ。作成の上限（429）は件数や容量を文言に入れて
+    // 出すので、code だけでは足りない（QuotaMessage を参照）
+    case rejected(status: Int, body: Data)
     case invalidResponse
 }
 
@@ -70,6 +73,51 @@ enum APIClient {
         }
     }
 
+    // 作って、作られたものを受け取る POST（ノートの新規作成など）
+    static func post<T: Decodable>(
+        _ path: String,
+        body: [String: Any] = [:],
+        as type: T.Type
+    ) async throws -> T {
+        guard let token = SessionStore.read() else { throw APIError.unauthorized }
+
+        var request = URLRequest(url: AppConfig.baseURL.appending(path: path))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.rejected(status: http.statusCode, body: data)
+        }
+        return try decoder.decode(T.self, from: data)
+    }
+
+    static func delete(_ path: String, query: [URLQueryItem] = []) async throws {
+        guard let token = SessionStore.read() else { throw APIError.unauthorized }
+
+        var components = URLComponents(
+            url: AppConfig.baseURL.appending(path: path),
+            resolvingAgainstBaseURL: false
+        )
+        if !query.isEmpty { components?.queryItems = query }
+        guard let url = components?.url else { throw APIError.invalidResponse }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        if http.statusCode == 401 { throw APIError.unauthorized }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.rejected(status: http.statusCode, body: data)
+        }
+    }
+
     // 中身を読まずに JSON をそのまま受け取る。エディタへ渡す本文と単語に使う。
     //
     // ⚠️ Swift の型にしないのは、（1）長い本文だと変換だけでメインスレッドが止まる
@@ -98,15 +146,22 @@ enum APIClient {
         return text
     }
 
-    /// 応答の JSON から、鍵ひとつぶんを**文字列のまま**取り出す。
-    /// ノート1件の応答から本文（bodyJson）だけを抜くのに使う
-    static func field(_ name: String, of json: String) -> String? {
+    /// 応答の JSON から、指定した鍵の値を**JSON の文字列のまま**取り出す。
+    /// ノート1件の応答から本文（bodyJson）とタイトルを抜くのに使う。
+    /// 長い本文だと読み込みだけで重いので、鍵が複数あっても全体の解析は1回で済ませる。
+    /// 値が null か、鍵が無いものは結果に入らない
+    static func fields(_ names: [String], of json: String) -> [String: String] {
         guard let data = json.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let value = object[name], !(value is NSNull),
-              let out = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
-        else { return nil }
-        return String(data: out, encoding: .utf8)
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return [:] }
+        var out: [String: String] = [:]
+        for name in names {
+            guard let value = object[name], !(value is NSNull),
+                  let encoded = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed)
+            else { continue }
+            out[name] = String(data: encoded, encoding: .utf8)
+        }
+        return out
     }
 
     // 本文の保存。JSON を組み立て直さず、渡された文字列をそのまま本文として送る。

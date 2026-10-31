@@ -10,7 +10,7 @@ struct NoteListResponse: Decodable {
 
 struct Note: Identifiable, Decodable, Hashable {
     let id: String
-    let title: String
+    var title: String
     // 検索と一覧プレビューのためのプレーンテキスト。本文そのもの（bodyJson）は
     // 型に変換せず、エディタへ文字列のまま渡す（NoteDetailView を参照）
     let body: String

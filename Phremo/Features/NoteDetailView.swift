@@ -12,15 +12,22 @@ import SwiftUI
 // Web 側が付けた未知の属性も落ちるため（APIClient.getRawJSON のコメント参照）。
 struct NoteDetailView: View {
     let note: Note
+    /// 開いたらタイトルにカーソルを置く（作ったばかりのノート）
+    var focusTitle = false
+    /// タイトルが変わった。一覧の行とナビゲーションバーの見出しを追従させるのに使う
+    var onTitleChange: (String) -> Void = { _ in }
 
     @State private var document: String?
+    @State private var title: String?
     @State private var words: String?
     @State private var loadFailed = false
-    @State private var saver: NoteBodySaver
+    @State private var saver: NoteSaver
 
-    init(note: Note) {
+    init(note: Note, focusTitle: Bool = false, onTitleChange: @escaping (String) -> Void = { _ in }) {
         self.note = note
-        _saver = State(initialValue: NoteBodySaver(noteId: note.id))
+        self.focusTitle = focusTitle
+        self.onTitleChange = onTitleChange
+        _saver = State(initialValue: NoteSaver(noteId: note.id))
     }
 
     var body: some View {
@@ -28,8 +35,14 @@ struct NoteDetailView: View {
             if let document {
                 NoteEditorWebView(
                     document: document,
+                    title: title ?? note.title,
                     words: words,
-                    onChange: { saver.save(document: $0) }
+                    focusTitle: focusTitle,
+                    onChange: { saver.save(document: $0) },
+                    onTitleChange: {
+                        saver.save(title: $0)
+                        onTitleChange($0)
+                    }
                 )
             } else if loadFailed {
                 ContentUnavailableView(
@@ -63,9 +76,10 @@ struct NoteDetailView: View {
         // ノートが変わったら取り直す
         .onChange(of: note.id) { _, _ in
             document = nil
+            title = nil
             words = nil
             loadFailed = false
-            saver = NoteBodySaver(noteId: note.id)
+            saver = NoteSaver(noteId: note.id)
             loadIfNeeded()
         }
     }
@@ -80,8 +94,11 @@ struct NoteDetailView: View {
     private func loadBody() async {
         do {
             let json = try await APIClient.getRawJSON("/api/notes/\(note.id)")
-            // 本文だけを文字列のまま抜き出す
-            document = APIClient.field("bodyJson", of: json) ?? "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\"}]}"
+            // 本文は文字列のまま抜き出す。タイトルも一覧の値ではなくこちらを使う
+            // （一覧を読んだ後に Web で変えられていても、開いた時点の最新を出す）
+            let fields = APIClient.fields(["bodyJson", "title"], of: json)
+            title = fields["title"].flatMap { try? JSONDecoder().decode(String.self, from: Data($0.utf8)) }
+            document = fields["bodyJson"] ?? "{\"type\":\"doc\",\"content\":[{\"type\":\"paragraph\"}]}"
         } catch {
             loadFailed = true
             print("note body load failed: \(error)")
