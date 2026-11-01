@@ -24,8 +24,8 @@
 
 ## 開発環境
 
-- Xcode 26.6 / iOS SDK 26.5 / Swift 6.3
-- Minimum Deployment: iOS 18.0
+- Xcode 27.2 / iOS SDK 27.2 / Swift 6.4.2（言語モードは Swift 6）
+- Minimum Deployment: iOS 26.0
 - Interface: SwiftUI
 
 ## リポジトリに入れないもの
