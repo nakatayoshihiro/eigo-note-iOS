@@ -50,6 +50,11 @@ struct RelatedForm: Decodable, Hashable {
     let form: String
     let translation: String
 
+    // サーバーへ送る形（POST/PATCH /api/words の relatedForms の1要素）
+    var payload: [String: String] {
+        ["pos": pos, "form": form, "translation": translation]
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         pos = (try? container.decode(String.self, forKey: .pos)) ?? ""

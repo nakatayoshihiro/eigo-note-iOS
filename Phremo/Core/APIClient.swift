@@ -73,16 +73,35 @@ enum APIClient {
         }
     }
 
-    // 作って、作られたものを受け取る POST（ノートの新規作成など）
+    // 作って、作られたものを受け取る POST（ノート・単語の作成、AI 解析など）
     static func post<T: Decodable>(
         _ path: String,
         body: [String: Any] = [:],
         as type: T.Type
     ) async throws -> T {
+        try await sendJSON("POST", path, body: body, as: type)
+    }
+
+    // 送った欄だけを書き換え、書き換えた後の姿を受け取る PATCH（単語の編集など）
+    static func patch<T: Decodable>(
+        _ path: String,
+        body: [String: Any],
+        as type: T.Type
+    ) async throws -> T {
+        try await sendJSON("PATCH", path, body: body, as: type)
+    }
+
+    // 断られた時は本文ごと投げる（上限の理由を画面に出すため）
+    private static func sendJSON<T: Decodable>(
+        _ method: String,
+        _ path: String,
+        body: [String: Any],
+        as type: T.Type
+    ) async throws -> T {
         guard let token = SessionStore.read() else { throw APIError.unauthorized }
 
         var request = URLRequest(url: AppConfig.baseURL.appending(path: path))
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

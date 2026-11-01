@@ -6,6 +6,12 @@ enum Pos {
     // 単語登録で使う品詞の全種類（lib/pos.ts の POS_TYPES と同順）
     static let all = ["名詞", "動詞", "形容詞", "副詞", "前置詞", "接続詞", "句動詞"]
 
+    // 派生語（語族）を持つ品詞。前置詞・接続詞・句動詞では派生語の欄を出さない
+    // （lib/pos.ts の CONTENT_POS / hasDerivatives と同じ）
+    static func hasDerivatives(_ pos: String) -> Bool {
+        ["名詞", "動詞", "形容詞", "副詞"].contains(pos)
+    }
+
     private static let colors: [String: (bg: Color, text: Color)] = [
         "名詞": (Color(hex: 0xf2f0fe), Color(hex: 0x5a42f3)),
         "動詞": (Color(hex: 0xe4f6eb), Color(hex: 0x2d9559)),

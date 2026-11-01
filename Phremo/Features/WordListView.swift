@@ -13,6 +13,9 @@ struct WordListView: View {
     @State private var selectedNoteID: String?
     // 選択は Word ではなく id で持つ。引っ張って更新したあとも選択が生き残る
     @State private var selectedID: Word.ID?
+    // 削除の確認を出している単語（一覧のスワイプ・長押しから）
+    @State private var deleting: Word?
+    @State private var deleteError: String?
 
     enum Phase {
         case loading
@@ -48,12 +51,24 @@ struct WordListView: View {
             // iPad は右カラムに詳細（Web の単語パネルと同じ位置関係）。
             // iPhone では画面が畳まれ、行をタップすると詳細が push される
             if let word = words.first(where: { $0.id == selectedID }) {
-                WordDetailView(word: word)
+                WordDetailView(
+                    word: word,
+                    onUpdated: replace,
+                    onDeleted: { remove(word.id) }
+                )
             } else {
                 ContentUnavailableView("単語を選んでください", systemImage: "character.book.closed")
             }
         }
         .task { await load() }
+        .alert(
+            "削除できませんでした",
+            isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(deleteError ?? "")
+        }
     }
 
     // 絞り込みの要約。何も掛かっていなければ空（サブタイトルは出ない）
@@ -139,6 +154,28 @@ struct WordListView: View {
         case .loaded:
             List(filtered, selection: $selectedID) { word in
                 row(for: word)
+                    // ⚠️ role: .destructive にしないこと。押した瞬間に行が消える動きになり、
+                    // 確認でキャンセルすると行が戻ってくる（NoteListView と同じ）
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button("削除", systemImage: "trash") { deleting = word }
+                            .tint(.red)
+                    }
+                    .contextMenu {
+                        Button("削除", systemImage: "trash", role: .destructive) { deleting = word }
+                    }
+                    // 確認は行ごとに付ける（吹き出しの矢印がその行を指すように）
+                    .confirmationDialog(
+                        "「\(word.lemma)」を削除しますか？",
+                        isPresented: Binding(
+                            get: { deleting?.id == word.id },
+                            set: { if !$0 { deleting = nil } }
+                        ),
+                        titleVisibility: .visible
+                    ) {
+                        Button("削除", role: .destructive) { Task { await delete(word) } }
+                    } message: {
+                        Text("この操作は取り消せません。")
+                    }
             }
             .refreshable { await load() }
         }
@@ -153,6 +190,28 @@ struct WordListView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func replace(_ word: Word) {
+        guard let index = words.firstIndex(where: { $0.id == word.id }) else { return }
+        words[index] = word
+    }
+
+    private func remove(_ id: Word.ID) {
+        words.removeAll { $0.id == id }
+        if selectedID == id { selectedID = nil }
+    }
+
+    private func delete(_ word: Word) async {
+        do {
+            try await APIClient.delete("/api/words/\(word.id)")
+            remove(word.id)
+        } catch APIError.unauthorized {
+            auth.handleUnauthorized()
+        } catch {
+            deleteError = "通信に失敗しました。電波状況を確認してもう一度お試しください。"
+            print("word delete failed: \(error)")
+        }
     }
 
     private func load() async {

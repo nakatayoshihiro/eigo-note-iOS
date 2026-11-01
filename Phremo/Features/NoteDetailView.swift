@@ -16,17 +16,33 @@ struct NoteDetailView: View {
     var focusTitle = false
     /// タイトルが変わった。一覧の行とナビゲーションバーの見出しを追従させるのに使う
     var onTitleChange: (String) -> Void = { _ in }
+    /// 単語を登録した。一覧の語数（削除の確認で単語の扱いを聞くかの判断にも使う）を追従させる
+    var onWordAdded: () -> Void = {}
 
     @State private var document: String?
     @State private var title: String?
     @State private var words: String?
     @State private var loadFailed = false
     @State private var saver: NoteSaver
+    // 登録画面に渡す、本文で選んだ語と文
+    @State private var registering: WordDraft?
 
-    init(note: Note, focusTitle: Bool = false, onTitleChange: @escaping (String) -> Void = { _ in }) {
+    struct WordDraft: Identifiable {
+        let id = UUID()
+        let surface: String
+        let sentence: String
+    }
+
+    init(
+        note: Note,
+        focusTitle: Bool = false,
+        onTitleChange: @escaping (String) -> Void = { _ in },
+        onWordAdded: @escaping () -> Void = {}
+    ) {
         self.note = note
         self.focusTitle = focusTitle
         self.onTitleChange = onTitleChange
+        self.onWordAdded = onWordAdded
         _saver = State(initialValue: NoteSaver(noteId: note.id))
     }
 
@@ -40,9 +56,13 @@ struct NoteDetailView: View {
                     focusTitle: focusTitle,
                     onChange: { saver.save(document: $0) },
                     onTitleChange: {
+                        // 単語登録で AI に渡すノート名にも使うので手元でも持つ
+                        // （エディタへは最初の1回しか送らないので、ここで変えても送り返さない）
+                        title = $0
                         saver.save(title: $0)
                         onTitleChange($0)
-                    }
+                    },
+                    onRegisterWord: { registering = WordDraft(surface: $0, sentence: $1) }
                 )
             } else if loadFailed {
                 ContentUnavailableView(
@@ -70,6 +90,19 @@ struct NoteDetailView: View {
                         .rotationEffect(.degrees(12))
                 }
             }
+        }
+        .sheet(item: $registering) { draft in
+            WordRegisterView(
+                surface: draft.surface,
+                sentence: draft.sentence,
+                noteId: note.id,
+                noteTitle: title ?? note.title,
+                onSaved: { _ in
+                    onWordAdded()
+                    // 塗りを取り直す（新しい語にも印が付く）
+                    Task { await loadWords() }
+                }
+            )
         }
         .onAppear { loadIfNeeded() }
         // iPad は詳細のビューが作り直されず中身だけ差し替わるので、

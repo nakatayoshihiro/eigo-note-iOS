@@ -47,7 +47,8 @@ struct NoteListView: View {
                 NoteDetailView(
                     note: note,
                     focusTitle: note.id == newNoteID,
-                    onTitleChange: { rename(note.id, to: $0) }
+                    onTitleChange: { rename(note.id, to: $0) },
+                    onWordAdded: { addWordCount(to: note.id) }
                 )
             } else {
                 ContentUnavailableView("ノートを選んでください", systemImage: "note.text")
@@ -215,6 +216,11 @@ struct NoteListView: View {
     private func rename(_ id: Note.ID, to title: String) {
         guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
         notes[index].title = title
+    }
+
+    private func addWordCount(to id: Note.ID) {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return }
+        notes[index].wordCount += 1
     }
 
     private func load() async {

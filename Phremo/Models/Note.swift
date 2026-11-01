@@ -18,7 +18,7 @@ struct Note: Identifiable, Decodable, Hashable {
     // 旧挙動のフォールバックがあるので、アプリ側でも代替を出す
     let sticker: String?
     let lastViewedAt: Date
-    let wordCount: Int
+    var wordCount: Int
 
     // サーバーは単語数を `_count: { words: N }` という入れ子で返す。
     // アプリ側でその形を引きずりたくないので、ここで平らにする
