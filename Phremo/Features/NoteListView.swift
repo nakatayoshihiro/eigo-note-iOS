@@ -148,7 +148,7 @@ struct NoteListView: View {
                 .scaledToFit()
                 // 大きさ・傾きは Web のリスト表示（app/(app)/page.tsx）に合わせた。
                 // 影は付けない（Web もリストとピッカーだけ影なし）
-                .frame(width: 50, height: 50)
+                .frame(width: 48, height: 48)
                 .rotationEffect(.degrees(16))
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.displayTitle).font(.body).lineLimit(1)

@@ -2,8 +2,9 @@
 """Web のステッカー（tsx）を iOS のアセットカタログ（svg）に写す。
 
 絵の正は Web 側 `app/components/stickers/Sticker*.tsx`。あちらは Figma の書き出しを
-scripts/gen-sticker.py で tsx にしたもので、viewBox は全種 100x100 に正規化されている。
-iOS 側で描き直すと2つの絵が育ってしまうので、ここでは tsx から svg を機械的に起こす。
+scripts/gen-sticker.py で tsx にしたもので、viewBox は全種共通の正方形（2026-09-06 から
+104x104。以前は 100x100）。iOS 側で描き直すと2つの絵が育ってしまうので、ここでは
+tsx から svg を機械的に起こす。
 
     python3 scripts/import-stickers.py
 
@@ -24,8 +25,27 @@ NAMES = [
 ]
 
 
+# SVG の仕様そのものがキャメルケースの属性。これ以外のキャメルケースは React の
+# 書き方（strokeWidth など）なので、ハイフン区切りに戻す
+SVG_CAMEL = {
+    "viewBox", "preserveAspectRatio",
+    "maskUnits", "maskContentUnits", "clipPathUnits",
+    "gradientUnits", "gradientTransform", "patternUnits", "patternTransform",
+}
+
+
 def to_svg(tsx: str) -> str:
+    # 2回以上使う d はコンポーネントの外に定数として括り出されている
+    # （gen-sticker.py。白フチは「マスク」「白い塗り」「外側の線」で同じ形を3回使う）
+    consts = dict(re.findall(r'^const (\w+) =\s*"([^"]*)";', tsx, re.M))
+
     body = tsx[tsx.index("<svg"): tsx.rindex("</svg>") + len("</svg>")]
+
+    body = re.sub(
+        r"d=\{(\w+)\}",
+        lambda m: f'd="{consts[m.group(1)]}"',
+        body,
+    )
 
     # JSX 固有の書き方を素の SVG に戻す。
     # id は React の useId() で描画ごとに一意にしていた（同じ絵を一覧に何枚も
@@ -38,9 +58,20 @@ def to_svg(tsx: str) -> str:
     body = re.sub(r"\s*className=\{className\}", "", body)
     body = re.sub(r'\s*aria-hidden="true"', "", body)
 
+    body = re.sub(
+        r"(\s)([a-z]+[A-Z][A-Za-z]*)=",
+        lambda m: m.group(1)
+        + (m.group(2) if m.group(2) in SVG_CAMEL else re.sub(r"[A-Z]", lambda c: "-" + c.group().lower(), m.group(2)))
+        + "=",
+        body,
+    )
+
     # 親要素いっぱいに描く指定は HTML 用。アセットカタログは実寸を要るので
-    # viewBox と同じ 100x100 にする
-    body = body.replace('width="100%"', 'width="100"').replace('height="100%"', 'height="100"')
+    # viewBox と同じ大きさにする
+    size = re.search(r'viewBox="0 0 (\d+) \1"', body)
+    if not size:
+        raise SystemExit("viewBox が正方形の 0 0 N N になっていません")
+    body = body.replace('width="100%"', f'width="{size[1]}"').replace('height="100%"', f'height="{size[1]}"')
 
     leftover = re.findall(r"\{[^}]*\}", body)
     if leftover:

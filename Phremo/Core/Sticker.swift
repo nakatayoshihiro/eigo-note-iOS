@@ -2,10 +2,13 @@ import Foundation
 
 // ノートのステッカー。Web の lib/sticker.ts と同じ規則で決める。
 //
-// 保存値は絵文字からイラストのキー（"travel" など）に移行済みで、絵文字時代の行も
-// まだ残っている。Web は「STICKER_SET に無い値は null と同じ扱いで ID から決定的に
-// 算出する」形にしているので、こちらも同じにする。ハッシュまで合わせてあるので、
-// 同じノートには Web と同じ絵が出る。
+// DB には必ず名前（"travel" など）が入っている（null・絵文字の行は 2026-11-01 に
+// Web の scripts/backfill-note-sticker.ts で埋め、API も null を拒む）。
+// それでも知らない名前は来る：Web が先にステッカーを足すと、このアプリが更新される
+// まではその名前を知らない（ノート作成時にサーバーがランダムに付けるので、
+// このアプリで作ったノートにも付く）。そのときは ID から決定的に既存の1枚を選ぶ。
+// 空欄にすると壊れて見えるので、別の絵で代わりに出す方を選んでいる（2026-11-01 判断）。
+// ハッシュは Web と同じ計算。
 enum Sticker: String, CaseIterable {
     case business, diary, diamond, interview, listening, speaking, test, travel
 
